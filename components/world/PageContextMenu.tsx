@@ -12,6 +12,7 @@ import {
   getPageDepth,
   type MovePageInput,
 } from './sidebarTreeOps';
+import { useWorldEmbedNavigate } from './WorldEmbedContext';
 
 type Props = {
   visible: boolean;
@@ -51,6 +52,7 @@ export function PageContextMenu({
   const allPages = usePagesStore((s) => s.byWorldId[worldId]) ?? [];
   const storeUpdate = usePagesStore((s) => s.updatePage);
   const storeRemove = usePagesStore((s) => s.removePage);
+  const isEmbedded = useWorldEmbedNavigate() != null;
 
   if (!visible) return null;
 
@@ -120,9 +122,17 @@ export function PageContextMenu({
       icon: 'vertical-split',
       onPress: () => {
         onClose();
-        useSplitPaneStore.getState().openSplit({
-          kind: 'world-page', worldId, pageId: page.id,
-        });
+        // On the standalone world route the left pane is the URL-driven
+        // primary page and never enters the tab store, so `openSplit`'s
+        // default ("left when leftTabs is empty and focus is left")
+        // files the tab on a side this route never reads — the split
+        // silently fails to open. Pin it to the right there. The
+        // embedded campaign shell renders both sides from the store, so
+        // it keeps the default placement.
+        useSplitPaneStore.getState().openSplit(
+          { kind: 'world-page', worldId, pageId: page.id },
+          isEmbedded ? undefined : { preferSide: 'right' },
+        );
       },
     } as MenuItem] : []),
     'divider' as const,

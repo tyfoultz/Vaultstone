@@ -4,7 +4,8 @@ import { usePagesStore, useSectionsStore, selectSectionsForWorld } from '@vaults
 
 const EMPTY_PAGES: import('@vaultstone/types').WorldPage[] = [];
 import type { StructuredField, WorldPage } from '@vaultstone/types';
-import { Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { Icon, Input, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
+import { pageRefLabel, pageRefPageId, resolvePageRef } from '../pageRefValue';
 
 type Props = {
   field: StructuredField;
@@ -28,8 +29,55 @@ export function PageRefField({ field, value, onChange, worldId, compact }: Props
   const sectionName = (page: WorldPage) =>
     sections.find((s) => s.id === page.section_id)?.name ?? '';
 
-  const currentId = typeof value === 'string' ? value : null;
-  const currentPage = currentId ? candidates.find((p) => p.id === currentId) : null;
+  // Resolve against every page in the world, not just the kind-filtered
+  // candidates — a link whose target changed kind is still a real link.
+  const ref = resolvePageRef(value, pagesByWorld);
+  const currentLabel = pageRefLabel(ref);
+  const linkedId = pageRefPageId(ref);
+  const hasValue = currentLabel !== null;
+
+  // Free-text draft. The same box filters the list and, when nothing
+  // matches, becomes the value itself — not every faction leader or parent
+  // location has a page, and requiring one to fill the field is the wrong
+  // trade.
+  const [draft, setDraft] = useState('');
+  const trimmed = draft.trim();
+  const filtered = useMemo(
+    () => (trimmed
+      ? candidates.filter((p) => p.title.toLowerCase().includes(trimmed.toLowerCase()))
+      : candidates),
+    [candidates, trimmed],
+  );
+  const canUseFreeText = trimmed.length > 0
+    && !candidates.some((p) => p.title.toLowerCase() === trimmed.toLowerCase());
+
+  function commitFreeText() {
+    if (!canUseFreeText) return;
+    onChange(trimmed);
+    setDraft('');
+    setPickerOpen(false);
+  }
+
+  const freeTextRow = canUseFreeText ? (
+    <Pressable onPress={commitFreeText} style={styles.freeTextRow}>
+      <Icon name="edit" size={14} color={colors.outline} />
+      <Text variant="body-sm" numberOfLines={1} style={{ flex: 1, color: colors.onSurface }}>
+        Use “{trimmed}”
+      </Text>
+      <MetaLabel size="sm" style={{ color: colors.outline }}>No page</MetaLabel>
+    </Pressable>
+  ) : null;
+
+  const searchBox = (
+    <Input
+      value={draft}
+      onChangeText={setDraft}
+      placeholder={`Search or type a ${field.label.toLowerCase()}…`}
+      onSubmitEditing={commitFreeText}
+      returnKeyType="done"
+      style={{ fontSize: 13 }}
+    />
+  );
 
   if (compact) {
     return (
@@ -42,9 +90,9 @@ export function PageRefField({ field, value, onChange, worldId, compact }: Props
           <Text
             variant="body-sm"
             numberOfLines={1}
-            style={{ flex: 1, color: currentPage ? colors.onSurface : colors.outline, fontSize: 13 }}
+            style={{ flex: 1, color: hasValue ? colors.onSurface : colors.outline, fontSize: 13 }}
           >
-            {currentPage?.title ?? '—'}
+            {currentLabel ?? '—'}
           </Text>
           <Icon name="expand-more" size={14} color={colors.outline} />
         </Pressable>
@@ -57,9 +105,11 @@ export function PageRefField({ field, value, onChange, worldId, compact }: Props
                   <MetaLabel size="sm" tone="muted" style={{ paddingHorizontal: spacing.xs, paddingBottom: spacing.xs }}>
                     {field.label}
                   </MetaLabel>
-                  {currentId ? (
+                  {searchBox}
+                  {freeTextRow}
+                  {hasValue ? (
                     <Pressable
-                      onPress={() => { onChange(null); setPickerOpen(false); }}
+                      onPress={() => { onChange(null); setDraft(''); setPickerOpen(false); }}
                       style={styles.pickerClear}
                     >
                       <Icon name="close" size={14} color={colors.outline} />
@@ -67,12 +117,12 @@ export function PageRefField({ field, value, onChange, worldId, compact }: Props
                     </Pressable>
                   ) : null}
                   <ScrollView style={{ maxHeight: 300 }}>
-                    {candidates.map((page) => {
-                      const selected = currentId === page.id;
+                    {filtered.map((page) => {
+                      const selected = linkedId === page.id;
                       return (
                         <Pressable
                           key={page.id}
-                          onPress={() => { onChange(selected ? null : page.id); setPickerOpen(false); }}
+                          onPress={() => { onChange(selected ? null : page.id); setDraft(''); setPickerOpen(false); }}
                           style={({ pressed }) => [
                             styles.pickerRow,
                             selected && styles.pickerRowActive,
@@ -109,14 +159,24 @@ export function PageRefField({ field, value, onChange, worldId, compact }: Props
           {field.helpText}
         </Text>
       ) : null}
-      {candidates.length === 0 ? (
+      {searchBox}
+      {freeTextRow}
+      {hasValue ? (
+        <Pressable onPress={() => { onChange(null); setDraft(''); }} style={styles.pickerClear}>
+          <Icon name="close" size={14} color={colors.outline} />
+          <Text variant="label-sm" style={{ color: colors.outline }}>
+            Clear “{currentLabel}”
+          </Text>
+        </Pressable>
+      ) : null}
+      {filtered.length === 0 ? (
         <Text variant="body-sm" style={{ color: colors.outline }}>
-          No candidate pages yet.
+          {trimmed ? 'No pages match — use the row above to keep it as plain text.' : 'No candidate pages yet.'}
         </Text>
       ) : (
         <View style={styles.list}>
-          {candidates.map((page) => {
-            const selected = currentId === page.id;
+          {filtered.map((page) => {
+            const selected = linkedId === page.id;
             return (
               <Pressable
                 key={page.id}
@@ -146,6 +206,17 @@ export function PageRefField({ field, value, onChange, worldId, compact }: Props
 const styles = StyleSheet.create({
   root: {
     gap: spacing.xs + 2,
+  },
+  freeTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.outlineVariant + '66',
   },
   list: {
     borderWidth: 1,

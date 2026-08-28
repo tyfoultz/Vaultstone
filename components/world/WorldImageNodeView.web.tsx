@@ -9,6 +9,7 @@ import {
 import { useAuthStore } from '@vaultstone/store';
 import { colors, ImageCropModal, spacing, type AspectPreset } from '@vaultstone/ui';
 import { commitPin, decidePinFlow, type PinSlot } from './pinImageWithCrop';
+import { copyImageToClipboard } from './copyImageToClipboard';
 
 type SignedUrlEntry = { url: string; expiresAt: number };
 const urlCache = new Map<string, SignedUrlEntry>();
@@ -77,6 +78,7 @@ export function WorldImageNodeView(props: NodeViewProps) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [draftCaption, setDraftCaption] = useState('');
   const [saving, setSaving] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copying' | 'failed'>('idle');
   // Pending pin — populated when the user picks Scene or Subject;
   // mounts the crop modal at the slot's aspect. Cleared on
   // confirm/cancel.
@@ -161,12 +163,28 @@ export function WorldImageNodeView(props: NodeViewProps) {
     const y = rect ? e.clientY - rect.top : 0;
     setMenuPos({ x, y });
     setMenuMode('root');
+    setCopyState('idle');
     setMenuOpen(true);
   }
 
   function selectThisNode() {
     const pos = typeof getPos === 'function' ? getPos() : null;
     if (pos != null) editor.chain().setNodeSelection(pos).run();
+  }
+
+  // ── Copy to clipboard ─────────────────────────────────────────────
+  // Called straight from the click so the browser's user activation is
+  // still live when copyImageToClipboard reaches navigator.clipboard.write.
+  async function copyImage() {
+    if (!src || copyState === 'copying') return;
+    setCopyState('copying');
+    const ok = await copyImageToClipboard(src);
+    if (ok) {
+      setCopyState('idle');
+      setMenuOpen(false);
+    } else {
+      setCopyState('failed');
+    }
   }
 
   // ── Caption sub-mode ──────────────────────────────────────────────
@@ -274,6 +292,8 @@ export function WorldImageNodeView(props: NodeViewProps) {
         >
           {menuMode === 'root' ? (
             <RootMenu
+              onCopy={copyImage}
+              copyState={copyState}
               onCaption={openCaption}
               onPinScene={chooseScene}
               onPinSubject={chooseSubject}
@@ -327,6 +347,8 @@ export function WorldImageNodeView(props: NodeViewProps) {
 // ── Inline menu pieces ──────────────────────────────────────────────
 
 function RootMenu({
+  onCopy,
+  copyState,
   onCaption,
   onPinScene,
   onPinSubject,
@@ -334,6 +356,8 @@ function RootMenu({
   canCaption,
   dmCampaignsLoaded,
 }: {
+  onCopy: () => void;
+  copyState: 'idle' | 'copying' | 'failed';
   onCaption: () => void;
   onPinScene: () => void;
   onPinSubject: () => void;
@@ -345,6 +369,17 @@ function RootMenu({
   const pinLoading = !dmCampaignsLoaded;
   return (
     <div className="world-image-menu-list">
+      {/* This menu replaces the browser's own on right-click, so it has to
+          carry Copy itself or there's no way to get the picture out. */}
+      <MenuItem
+        icon={copyState === 'failed' ? '⚠' : '📋'}
+        label={copyState === 'copying' ? 'Copying…'
+          : copyState === 'failed' ? "Couldn't copy image"
+          : 'Copy image'}
+        onClick={onCopy}
+        disabled={copyState === 'copying'}
+      />
+      <div className="world-image-menu-sep" />
       {canCaption ? <MenuItem icon="✏" label="Edit caption" onClick={onCaption} /> : null}
       {canCaption ? <div className="world-image-menu-sep" /> : null}
       <MenuItem

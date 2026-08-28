@@ -45,6 +45,7 @@ import { PlayerViewToggle } from './PlayerViewToggle';
 import { ShareModal } from './ShareModal';
 import { PAGE_KIND_LABEL } from './helpers';
 import { usePageVisibilityToggle } from './usePageVisibilityToggle';
+import { pageRefLabel, pageRefPageId, resolvePageRef, type PageRefValue } from './pageRefValue';
 import { worldMapHref, worldPageHref, worldSectionHref } from './worldHref';
 import {
   type PillDef,
@@ -91,9 +92,11 @@ const FACTION_REL_TYPES = [
 function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColor, worldId }: {
   label: string;
   icon: string;
-  value: WorldPage | null;
+  /** Resolved stored value — a linked page, a typed name, or nothing. */
+  value: PageRefValue;
   candidates: WorldPage[];
-  onSelect: (id: string | null) => void;
+  /** Receives a page id, a free-text name, or null to clear. */
+  onSelect: (value: string | null) => void;
   accentColor: string;
   worldId: string;
 }) {
@@ -106,6 +109,23 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
   const filtered = search
     ? candidates.filter((p) => p.title.toLowerCase().includes(search.toLowerCase()))
     : candidates;
+
+  const displayLabel = pageRefLabel(value);
+  const hasValue = displayLabel !== null;
+  const linkedPageId = pageRefPageId(value);
+
+  // Offer the typed text as a name of its own, unless it just duplicates a
+  // page already on the list (picking the page is the better outcome there).
+  const trimmedSearch = search.trim();
+  const canUseFreeText = trimmedSearch.length > 0
+    && !candidates.some((p) => p.title.toLowerCase() === trimmedSearch.toLowerCase());
+
+  function commitFreeText() {
+    if (!canUseFreeText) return;
+    onSelect(trimmedSearch);
+    setOpen(false);
+    setSearch('');
+  }
 
   function handleOpen() {
     if (triggerRef.current) {
@@ -126,12 +146,12 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
           cursor: 'pointer',
           padding: '4px 10px',
           borderRadius: 8,
-          border: `1px solid ${value ? accentColor + '44' : colors.outlineVariant + '44'}`,
-          background: value ? accentColor + '11' : 'transparent',
+          border: `1px solid ${hasValue ? accentColor + '44' : colors.outlineVariant + '44'}`,
+          background: hasValue ? accentColor + '11' : 'transparent',
           transition: 'background 0.15s, border-color 0.15s',
         }}
-        onMouseEnter={(e: any) => { e.currentTarget.style.background = value ? accentColor + '22' : colors.surfaceContainerHigh; }}
-        onMouseLeave={(e: any) => { e.currentTarget.style.background = value ? accentColor + '11' : 'transparent'; }}
+        onMouseEnter={(e: any) => { e.currentTarget.style.background = hasValue ? accentColor + '22' : colors.surfaceContainerHigh; }}
+        onMouseLeave={(e: any) => { e.currentTarget.style.background = hasValue ? accentColor + '11' : 'transparent'; }}
       >
         <span style={{
           fontFamily: "'Manrope', system-ui, sans-serif",
@@ -145,10 +165,14 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
         <span style={{
           fontFamily: "'Manrope', system-ui, sans-serif",
           fontSize: 13,
-          color: value ? accentColor : colors.outline,
-          fontWeight: value ? 600 : 400,
+          // Free text reads as plain body copy — the accent is what marks a
+          // value as a page you can actually click through to.
+          color: value.kind === 'page' ? accentColor
+            : value.kind === 'text' ? colors.onSurface
+            : colors.outline,
+          fontWeight: hasValue ? 600 : 400,
         }}>
-          {value?.title ?? '—'}
+          {displayLabel ?? '—'}
         </span>
       </div>
 
@@ -176,8 +200,12 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
               type="text"
               value={search}
               onChange={(e: any) => setSearch(e.target.value)}
+              onKeyDown={(e: any) => {
+                if (e.key === 'Enter') { e.preventDefault(); commitFreeText(); }
+                else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); setSearch(''); }
+              }}
               autoFocus
-              placeholder={`Search ${label.toLowerCase().replace(/:.*/,'')}…`}
+              placeholder={`Search or type a ${label.toLowerCase().replace(/:.*/, '')}…`}
               style={{
                 width: '100%',
                 boxSizing: 'border-box' as const,
@@ -192,7 +220,7 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
                 marginBottom: 6,
               }}
             />
-            {value ? (
+            {hasValue ? (
               <div
                 onClick={() => { onSelect(null); setOpen(false); setSearch(''); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', cursor: 'pointer', borderRadius: 6, marginBottom: 4 }}
@@ -202,10 +230,29 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
                 <span style={{ fontFamily: "'Manrope'", fontSize: 12, color: colors.outline, fontStyle: 'italic' }}>Clear selection</span>
               </div>
             ) : null}
+            {canUseFreeText ? (
+              <div
+                onClick={commitFreeText}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 4,
+                  border: `1px dashed ${colors.outlineVariant}66`,
+                }}
+                onMouseEnter={(e: any) => { e.currentTarget.style.background = colors.surfaceContainer; }}
+                onMouseLeave={(e: any) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurface, flex: 1 }}>
+                  Use “{trimmedSearch}”
+                </span>
+                <span style={{ fontFamily: "'Manrope'", fontSize: 10, color: colors.outline, letterSpacing: 0.6, textTransform: 'uppercase' }}>
+                  No page
+                </span>
+              </div>
+            ) : null}
             <div style={{ maxHeight: 220, overflowY: 'auto' }}>
               {filtered.length === 0 ? (
                 <div style={{ padding: 8, fontFamily: "'Manrope'", fontSize: 12, color: colors.outline, fontStyle: 'italic' }}>
-                  {search ? 'No matches.' : 'No pages available.'}
+                  {search ? 'No pages match — press Enter to use it as plain text.' : 'No pages available.'}
                 </div>
               ) : filtered.map((p) => (
                 <div
@@ -214,10 +261,10 @@ function InlinePagePicker({ label, icon, value, candidates, onSelect, accentColo
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '8px 8px', borderRadius: 6, cursor: 'pointer',
-                    background: value?.id === p.id ? colors.primaryContainer + '22' : 'transparent',
+                    background: linkedPageId === p.id ? colors.primaryContainer + '22' : 'transparent',
                   }}
-                  onMouseEnter={(e: any) => { if (value?.id !== p.id) e.currentTarget.style.background = colors.surfaceContainer; }}
-                  onMouseLeave={(e: any) => { if (value?.id !== p.id) e.currentTarget.style.background = 'transparent'; }}
+                  onMouseEnter={(e: any) => { if (linkedPageId !== p.id) e.currentTarget.style.background = colors.surfaceContainer; }}
+                  onMouseLeave={(e: any) => { if (linkedPageId !== p.id) e.currentTarget.style.background = 'transparent'; }}
                 >
                   <span style={{ fontFamily: "'Manrope'", fontSize: 13, color: colors.onSurface, flex: 1 }}>{p.title}</span>
                 </div>
@@ -421,13 +468,23 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
   const hooks = Array.isArray(fields.__hooks) ? (fields.__hooks as string[]) : [];
   const relationships: Relationship[] = Array.isArray(fields.__relationships) ? (fields.__relationships as Relationship[]) : [];
 
-  // Leader & HQ (page_refs)
-  const leaderId = typeof fields.leader === 'string' ? fields.leader : null;
-  const leaderPage = leaderId ? (allPages ?? []).find((p) => p.id === leaderId) ?? null : null;
+  // Leader & HQ (page_refs). Either may hold a linked page or a name the
+  // user typed; `resolvePageRef` tells them apart. `leaderId`/`hqId` stay
+  // page-ids-or-null so every downstream lookup below keeps its meaning —
+  // a free-text leader simply isn't a member, and a free-text HQ has no
+  // map pin to fetch.
+  const leaderRef = useMemo(
+    () => resolvePageRef(fields.leader, allPages ?? []),
+    [fields.leader, allPages],
+  );
+  const leaderId = pageRefPageId(leaderRef);
   const leaderCandidates = useMemo(() => (allPages ?? []).filter((p) => p.page_kind === 'npc'), [allPages]);
 
-  const hqId = typeof fields.headquarters === 'string' ? fields.headquarters : null;
-  const hqPage = hqId ? (allPages ?? []).find((p) => p.id === hqId) ?? null : null;
+  const hqRef = useMemo(
+    () => resolvePageRef(fields.headquarters, allPages ?? []),
+    [fields.headquarters, allPages],
+  );
+  const hqId = pageRefPageId(hqRef);
   const hqCandidates = useMemo(() => (allPages ?? []).filter((p) => p.page_kind === 'location'), [allPages]);
 
   // HQ map pin
@@ -798,8 +855,8 @@ export function FactionPageView({ page, worldId, splitMode }: Props) {
             </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 4 }}>
-            <InlinePagePicker label="Leader:" icon="person" value={leaderPage} candidates={leaderCandidates} onSelect={(id) => updateField('leader', id)} accentColor={colors.cosmic} worldId={worldId} />
-            <InlinePagePicker label="HQ:" icon="place" value={hqPage} candidates={hqCandidates} onSelect={(id) => updateField('headquarters', id)} accentColor={colors.primary} worldId={worldId} />
+            <InlinePagePicker label="Leader:" icon="person" value={leaderRef} candidates={leaderCandidates} onSelect={(v) => updateField('leader', v)} accentColor={colors.cosmic} worldId={worldId} />
+            <InlinePagePicker label="HQ:" icon="place" value={hqRef} candidates={hqCandidates} onSelect={(v) => updateField('headquarters', v)} accentColor={colors.primary} worldId={worldId} />
           </div>
         </View>
       </View>

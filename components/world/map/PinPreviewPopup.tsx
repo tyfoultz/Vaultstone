@@ -5,6 +5,7 @@ import type { Json, WorldPage } from '@vaultstone/types';
 import { Card, GhostButton, GradientButton, Icon, MetaLabel, Text, colors, radius, spacing } from '@vaultstone/ui';
 
 import { PAGE_KIND_LABEL } from '../helpers';
+import { pageRefLabel, resolvePageRef } from '../pageRefValue';
 
 type CanvasBlock = { id: string; x: number; y: number; width: number; html: string };
 
@@ -78,11 +79,9 @@ function getKindFields(page: WorldPage, fields: Record<string, unknown>, allPage
       const out: KindFields = [];
       const doctrine = fieldStr(fields, 'doctrine');
       if (doctrine) out.push({ label: 'Doctrine', value: doctrine, icon: 'menu-book' });
-      const leaderId = fieldStr(fields, 'leader');
-      if (leaderId) {
-        const leader = allPages.find((p) => p.id === leaderId);
-        if (leader) out.push({ label: 'Leader', value: leader.title, icon: 'person' });
-      }
+      // Leader may be a linked NPC page or a name typed straight in.
+      const leader = pageRefLabel(resolvePageRef(fields.leader, allPages));
+      if (leader) out.push({ label: 'Leader', value: leader, icon: 'person' });
       const size = fieldStr(fields, 'size');
       if (size) out.push({ label: 'Size', value: size, icon: 'groups' });
       const stance = fieldStr(fields, 'stance');
