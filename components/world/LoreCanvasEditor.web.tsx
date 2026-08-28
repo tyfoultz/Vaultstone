@@ -13,6 +13,7 @@ import {
 import { useAuthStore } from '@vaultstone/store';
 import { ImageCropModal } from '@vaultstone/ui';
 import { commitPin, decidePinFlow, type PinSlot } from './pinImageWithCrop';
+import { copyImageToClipboard } from './copyImageToClipboard';
 import type { AspectPreset } from '@vaultstone/ui';
 
 type CanvasBlock = {
@@ -708,11 +709,15 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   // chooser when multiple campaigns DM'd by the user are linked
   // to this world.
   const [imageMenu, setImageMenu] = useState<{
-    imageId: string;
+    // Null for legacy data-URL images, which predate `world_images` rows.
+    // Those can still be copied; only caption/pin need the row.
+    imageId: string | null;
+    src: string;
     x: number;
     y: number;
     mode: 'root' | 'caption' | 'pin-scene' | 'pin-subject';
   } | null>(null);
+  const [imageCopyState, setImageCopyState] = useState<'idle' | 'copying' | 'failed'>('idle');
   const [imageMenuDraftCaption, setImageMenuDraftCaption] = useState('');
   const [imageMenuSaving, setImageMenuSaving] = useState(false);
   const [imageMenuDMCampaigns, setImageMenuDMCampaigns] = useState<
@@ -829,28 +834,10 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     applySnapshot(historyRef.current[historyPosRef.current]);
   }
 
-  async function copySelectedImage() {
+  function copySelectedImage() {
     const sel = canvasRef.current?.querySelector('img.lore-img-selected') as HTMLImageElement | null;
-    if (!sel) return false;
-    try {
-      const res = await fetch(sel.src);
-      const blob = await res.blob();
-      if (blob.type === 'image/png') {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        return true;
-      }
-      const bitmap = await createImageBitmap(blob);
-      const cvs = document.createElement('canvas');
-      cvs.width = bitmap.width;
-      cvs.height = bitmap.height;
-      cvs.getContext('2d')!.drawImage(bitmap, 0, 0);
-      const pngBlob = await new Promise<Blob | null>((r) => cvs.toBlob(r, 'image/png'));
-      if (pngBlob) {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-        return true;
-      }
-    } catch { /* clipboard API or CORS blocked */ }
-    return false;
+    if (!sel) return Promise.resolve(false);
+    return copyImageToClipboard(sel.src);
   }
 
   // Load the list of campaigns the auth'd user DMs that are linked
@@ -1072,21 +1059,25 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   const handleCanvasContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
 
-    // Right-click on a tagged world image → open the pin/caption menu
-    // regardless of edit mode (pinning is a campaign action, not an edit).
-    const imgEl = target.closest?.('img[data-world-image-id]') as HTMLImageElement | null;
+    // Right-click on any image → copy/pin/caption menu, regardless of
+    // edit mode (copying and pinning are not edits). This replaces the
+    // browser's own context menu, so it has to carry "Copy image" itself
+    // or there is no way to get the picture out of the page. Untagged
+    // legacy data-URL images open the menu too — they just can't be
+    // captioned or pinned, since those need a `world_images` row.
+    const imgEl = target.closest?.('img') as HTMLImageElement | null;
     if (imgEl) {
-      const imageId = imgEl.getAttribute('data-world-image-id');
-      if (imageId) {
-        e.preventDefault();
-        const rect = canvasRef.current!.getBoundingClientRect();
-        setImageMenu({
-          imageId,
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-          mode: 'root',
-        });
-      }
+      e.preventDefault();
+      const rect = canvasRef.current!.getBoundingClientRect();
+      setImageCopyState('idle');
+      setTableMenu(null);
+      setImageMenu({
+        imageId: imgEl.getAttribute('data-world-image-id'),
+        src: imgEl.src,
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        mode: 'root',
+      });
       return;
     }
 
@@ -1853,7 +1844,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
   // ── Image menu handlers ────────────────────────────────────────────
   function openImageCaptionEditor() {
-    if (!imageMenu) return;
+    if (!imageMenu?.imageId) return;
     // Read the current caption from any matching <img> in the
     // canvas (re-renders mirror it across duplicates) so the
     // editor doesn't start blank when the user has a caption set.
@@ -1865,7 +1856,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   }
 
   async function commitImageCaption() {
-    if (!imageMenu || imageMenuSaving) return;
+    if (!imageMenu?.imageId || imageMenuSaving) return;
     setImageMenuSaving(true);
     const { error } = await updateWorldImageCaption(
       imageMenu.imageId,
@@ -1901,7 +1892,8 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
   }
 
   async function pinImageSlot(slot: PinSlot, campaignId: string) {
-    if (!imageMenu || !worldId) return;
+    if (!imageMenu?.imageId || !worldId) return;
+    const imageId = imageMenu.imageId;
     setImageMenuSaving(true);
 
     // Look up the source image's natural dimensions from the
@@ -1909,13 +1901,13 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     // stores width/height on the node attrs; we don't have those
     // here so we fall back to the live <img> element.
     const imgEl = canvasRef.current?.querySelector<HTMLImageElement>(
-      `img[data-world-image-id="${imageMenu.imageId}"]`,
+      `img[data-world-image-id="${imageId}"]`,
     );
     const sourceWidth = imgEl?.naturalWidth ?? 0;
     const sourceHeight = imgEl?.naturalHeight ?? 0;
 
     const decision = await decidePinFlow({
-      imageId: imageMenu.imageId,
+      imageId,
       slot,
       sourceWidth,
       sourceHeight,
@@ -1926,7 +1918,7 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
 
     setPendingPin({
       campaignId,
-      sourceImageId: imageMenu.imageId,
+      sourceImageId: imageId,
       sourceWidth,
       sourceHeight,
       slot,
@@ -1951,9 +1943,24 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
     setPendingPin(null);
   }
 
+  // Caption and pin both write against a `world_images` row, so they are
+  // unavailable for legacy data-URL images that never had one.
   const canPin = !!worldId && !!userId
+    && !!imageMenu?.imageId
     && imageMenuDMCampaigns !== null
     && imageMenuDMCampaigns.length > 0;
+
+  async function copyMenuImage() {
+    if (!imageMenu || imageCopyState === 'copying') return;
+    setImageCopyState('copying');
+    const ok = await copyImageToClipboard(imageMenu.src);
+    if (ok) {
+      setImageCopyState('idle');
+      setImageMenu(null);
+    } else {
+      setImageCopyState('failed');
+    }
+  }
 
   return (
     <View style={styles.root}>
@@ -2324,7 +2331,23 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
           >
             {imageMenu.mode === 'root' ? (
               <div className="lore-image-menu-list">
-                {editable ? (
+                <button
+                  type="button"
+                  className="lore-image-menu-item"
+                  onClick={copyMenuImage}
+                  disabled={imageCopyState === 'copying'}
+                >
+                  <span className="lore-image-menu-icon">
+                    {imageCopyState === 'failed' ? '⚠' : '📋'}
+                  </span>
+                  <span className="lore-image-menu-label">
+                    {imageCopyState === 'copying' ? 'Copying…'
+                      : imageCopyState === 'failed' ? "Couldn't copy image"
+                      : 'Copy image'}
+                  </span>
+                </button>
+                <div className="lore-image-menu-sep" />
+                {editable && imageMenu.imageId ? (
                   <>
                     <button
                       type="button"
@@ -2342,7 +2365,9 @@ export function LoreCanvasEditor({ initialBlocks, onChange, editable = true, men
                   className={`lore-image-menu-item${!canPin ? ' disabled' : ''}`}
                   onClick={canPin ? chooseImageScene : undefined}
                   disabled={!canPin}
-                  title={!canPin ? "No DM'd campaign linked to this world" : undefined}
+                  title={canPin ? undefined
+                    : !imageMenu.imageId ? 'This image predates world image records'
+                    : "No DM'd campaign linked to this world"}
                 >
                   <span className="lore-image-menu-icon">🖼</span>
                   <span className="lore-image-menu-label">Pin to Scene</span>
