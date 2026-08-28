@@ -197,13 +197,46 @@ export function casterTypeForEntry(
   return subCasting?.casterProgression ?? null;
 }
 
+/**
+ * Resolve the ability that drives this character's spellcasting.
+ *
+ * `stats.spellcastingAbility` is only stamped **once, at character
+ * creation**, from the starting class (see `app/character/new.tsx`).
+ * Nothing rewrites it when a class is added later, so a character who
+ * multiclasses INTO a caster (Rogue 3 -> Bard 5) keeps the null their
+ * non-caster start wrote. Resolving off the class results instead of
+ * trusting that stamp is what makes the Spells tab work for them —
+ * without it `spellAbility` stays null, and SpellsTab hides the whole
+ * spellcasting stats row, which is where the MANAGE button lives.
+ *
+ * Precedence: the explicit stamp (also the Manual Mode override) wins,
+ * then a class-granted ability, then a subclass-granted one (Eldritch
+ * Knight / Arcane Trickster) — a full class's casting should outrank a
+ * third-caster subclass on a multiclass character.
+ *
+ * Among several casting classes the primary one wins; otherwise the
+ * highest-level caster entry, so a Rogue 3 / Bard 5 reports Charisma.
+ */
 export function getEffectiveSpellcastingAbility(
   stats: Dnd5eStats,
   classResultsByKey: Record<string, ClassResult>,
   subclassResultsByKey: Record<string, SubclassResult>,
 ): string | null {
   if (stats.spellcastingAbility) return stats.spellcastingAbility;
-  for (const entry of getClassEntries(stats)) {
+
+  const entries = getClassEntries(stats);
+
+  const casters = entries
+    .map((entry) => ({ entry, cls: classResultsByKey[entry.classKey] }))
+    .filter((c) => !!c.cls?.spellcastingAbility);
+  if (casters.length > 0) {
+    const primary = casters.find((c) => c.entry.primary);
+    const best = primary
+      ?? casters.reduce((a, b) => (b.entry.level > a.entry.level ? b : a));
+    return best.cls!.spellcastingAbility ?? null;
+  }
+
+  for (const entry of entries) {
     if (entry.subclassKey) {
       const sub = subclassResultsByKey[entry.subclassKey];
       const casting = resolveSubclassCasting(sub);

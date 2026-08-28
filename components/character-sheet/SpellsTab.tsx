@@ -299,8 +299,16 @@ export function SpellsTab({
     <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
 
       {/* ── Spellcasting stats header ── */}
-      {spellAbility && (
+      {/* The ATTACK / SAVE DC pair needs a resolved spellcasting
+          ability, but MANAGE and RULES do not — and gating the whole
+          row on `spellAbility` is what stranded multiclass casters
+          whose ability failed to resolve: no ability meant no row,
+          which meant no way to open the spell picker at all. Render
+          the row whenever *any* of its cells has something to show. */}
+      {(spellAbility || (isOwner && onOpenManage) || (spellcastingExplainers && spellcastingExplainers.length > 0)) && (
         <View style={s.statsRow}>
+          {spellAbility && (
+          <>
           <TouchableOpacity
             style={s.statBlock}
             onPress={manualMode && onEditField
@@ -322,13 +330,15 @@ export function SpellsTab({
             <Text style={s.statValue}>{spellDC !== null ? String(spellDC) : '—'}</Text>
             <Text style={s.statLabel}>SAVE DC</Text>
           </TouchableOpacity>
+          </>
+          )}
           {/* Action buttons take the slots where CANTRIPS + PREPARED
               count stats used to live. The cantrips header already
               shows "X of Y cantrips" and the per-level + buttons add
               spells, so the at-a-glance counts were redundant here. */}
           {isOwner && onOpenManage ? (
             <>
-              <View style={s.statDivider} />
+              {spellAbility ? <View style={s.statDivider} /> : null}
               <TouchableOpacity
                 style={s.statActionBlock}
                 onPress={onOpenManage}
@@ -341,7 +351,7 @@ export function SpellsTab({
           ) : null}
           {spellcastingExplainers && spellcastingExplainers.length > 0 ? (
             <>
-              <View style={s.statDivider} />
+              {spellAbility || (isOwner && onOpenManage) ? <View style={s.statDivider} /> : null}
               <TouchableOpacity
                 style={s.statActionBlock}
                 onPress={() => setExplainerOpen(true)}
@@ -546,7 +556,9 @@ export function SpellsTab({
           <MaterialCommunityIcons name="auto-fix" size={32} color={colors.outlineVariant} />
           <Text style={s.emptyTitle}>No Spells</Text>
           <Text style={s.emptyBody}>
-            This character has no spellcasting ability. Spells can be added once a spellcasting class is selected.
+            {isOwner && onOpenManage
+              ? 'No spellcasting ability resolved for this character’s classes. You can still add spells from the catalog with “Manage” above.'
+              : 'This character has no spellcasting ability. Spells can be added once a spellcasting class is selected.'}
           </Text>
         </View>
       )}
