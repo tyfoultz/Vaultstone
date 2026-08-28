@@ -2394,6 +2394,7 @@ export function CharacterSheet({ characterId, onClose, embedded: _embedded }: Ch
             compact={!isDesktop}
             manualMode={manualMode}
             onEditField={manualMode ? startEditField : undefined}
+            effectiveSpellcastingAbility={spellcastingAbilityForHint}
             onUpdateProficiencies={(profs, exp) => {
               if (!stats) return;
               persistStats({ ...stats, skillProficiencies: profs, skillExpertise: exp });

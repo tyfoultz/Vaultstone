@@ -51,13 +51,19 @@ interface Props {
    *  to live on the Combat tab. */
   manualMode?: boolean;
   onEditField?: (field: string, currentValue: number | string) => void;
+  /** Spellcasting ability resolved from the character's classes. The
+   *  parent passes this because `stats.spellcastingAbility` is only
+   *  stamped at creation from the starting class — a character who
+   *  multiclassed into a caster has a stale null there, which left the
+   *  casting-ability tile unhighlighted. */
+  effectiveSpellcastingAbility?: string | null;
   onUpdateProficiencies?: (proficiencies: string[], expertise: string[]) => void;
   onUpdateToolProficiencies?: (proficiencies: string[], expertise: string[]) => void;
 }
 
 export function SkillsTab({
   stats, scores, prof, onRoll, skillCatalog, isOwner, compact,
-  manualMode, onEditField,
+  manualMode, onEditField, effectiveSpellcastingAbility,
   onUpdateProficiencies, onUpdateToolProficiencies,
 }: Props) {
   const [detailFor, setDetailFor] = useState<{ name: string; description: string; ability: string } | null>(null);
@@ -182,7 +188,7 @@ export function SkillsTab({
         {ABILITY_KEYS.map((abi) => {
           const score = scores[abi];
           const m = abilityMod(score);
-          const isSpellMod = stats.spellcastingAbility?.toLowerCase() === abi;
+          const isSpellMod = (effectiveSpellcastingAbility ?? stats.spellcastingAbility)?.toLowerCase() === abi;
           return (
             <TouchableOpacity
               key={abi}

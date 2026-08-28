@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, TextInput,
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, spacing, radius } from '@vaultstone/ui';
 import { getSrdContent } from '@vaultstone/content';
+import { getEffectiveSpellcastingAbility } from '@vaultstone/systems';
 import type {
   Dnd5eStats, Dnd5eResources, Dnd5eAbilityScores, Dnd5eEquipmentItem, Dnd5eFeature,
   Dnd5eAbility, ConditionResult, SrdVersion,
@@ -264,7 +265,11 @@ export function CombatTab({
     return sum + (e.miscSaveBonus ?? 0);
   }, 0);
 
-  const isSpellcaster = !!stats.spellcastingAbility;
+  // Resolve off the class results — `stats.spellcastingAbility` is only
+  // stamped at creation from the starting class, so a character who
+  // multiclassed into a caster still has the null their non-caster
+  // start wrote and would fall through to `spellSlots = null`.
+  const isSpellcaster = !!getEffectiveSpellcastingAbility(stats, classResultsByKey, subclassResultsByKey);
   const spellSlots = resources.spellSlots ?? (isSpellcaster ? DEFAULT_SLOTS : null);
   const activeSlotLevels = spellSlots
     ? ([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).filter((lvl) => spellSlots[lvl].max > 0)
