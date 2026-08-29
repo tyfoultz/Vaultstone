@@ -982,10 +982,39 @@ function CoinCell({ label, value, color, editable, onPress }: {
   );
 }
 
+type CoinMode = 'set' | 'add' | 'subtract';
+
+const COIN_MODES: Array<{ key: CoinMode; label: string }> = [
+  { key: 'set', label: 'Set' },
+  { key: 'add', label: 'Add' },
+  { key: 'subtract', label: 'Subtract' },
+];
+
 /**
- * Modal numeric editor for a single coin denomination. Pre-fills with
- * the current amount, selects on focus, commits on Save / clears on
- * Cancel. Empty / invalid input is rejected silently (Save no-ops).
+ * Resolve a coin edit to its resulting balance.
+ *
+ * Returns `null` when the entry can't be applied: a non-numeric or
+ * negative amount, or a subtraction the purse can't cover. Overdrafts
+ * are blocked rather than clamped to zero — silently spending "as much
+ * as you had" hides the shortfall from the player, and coins are never
+ * auto-converted between denominations, so the app can't know the DM
+ * meant to break a platinum piece.
+ */
+export function resolveCoinEdit(mode: CoinMode, current: number, raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const amount = parseInt(trimmed, 10);
+  if (!Number.isFinite(amount)) return null;
+  if (mode === 'set') return amount;
+  if (mode === 'add') return current + amount;
+  return amount > current ? null : current - amount;
+}
+
+/**
+ * Modal editor for a single coin denomination. Three modes: overwrite
+ * the balance (Set), or apply a delta (Add / Subtract) so a DM handing
+ * out a 50 gp reward doesn't have to do the arithmetic first. The
+ * resulting balance is previewed live before Apply commits it.
  */
 function CoinEditModal({ open, label, currentValue, onSave, onClose }: {
   open: boolean;
@@ -994,17 +1023,33 @@ function CoinEditModal({ open, label, currentValue, onSave, onClose }: {
   onSave: (v: number) => void;
   onClose: () => void;
 }) {
+  const [mode, setMode] = useState<CoinMode>('set');
   const [text, setText] = useState(String(currentValue));
-  // Reset the buffer each time the modal opens for a different denom
-  // so the previous edit doesn't leak in.
-  useEffect(() => { if (open) setText(String(currentValue)); }, [open, currentValue]);
+
+  // Reset each time the modal opens for a different denom so the
+  // previous edit doesn't leak in.
+  useEffect(() => {
+    if (open) { setMode('set'); setText(String(currentValue)); }
+  }, [open, currentValue]);
+
+  // Switching modes reinterprets the number entirely ("47" means the new
+  // balance under Set, but a 47-coin delta under Add), so clear it rather
+  // than silently changing what the entered value means.
+  function pickMode(next: CoinMode) {
+    if (next === mode) return;
+    setMode(next);
+    setText(next === 'set' ? String(currentValue) : '');
+  }
+
+  const result = resolveCoinEdit(mode, currentValue, text);
+  const entered = text.trim().length > 0;
+  const overdrawn = mode === 'subtract' && result === null && /^\d+$/.test(text.trim());
+  const canApply = result !== null;
 
   function handleSave() {
-    const parsed = parseInt(text, 10);
-    if (!isNaN(parsed) && parsed >= 0) {
-      if (parsed !== currentValue) onSave(parsed);
-      onClose();
-    }
+    if (result === null) return;
+    if (result !== currentValue) onSave(result);
+    onClose();
   }
 
   return (
@@ -1017,22 +1062,56 @@ function CoinEditModal({ open, label, currentValue, onSave, onClose }: {
               <MaterialCommunityIcons name="close" size={18} color={colors.outline} />
             </TouchableOpacity>
           </View>
+
+          <View style={s.coinModeRow}>
+            {COIN_MODES.map((m) => (
+              <TouchableOpacity
+                key={m.key}
+                style={[s.coinModeBtn, mode === m.key && s.coinModeBtnActive]}
+                onPress={() => pickMode(m.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.coinModeText, mode === m.key && s.coinModeTextActive]}>{m.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={s.coinCurrentLine}>Current: {currentValue} {label.toLowerCase()}</Text>
+
           <TextInput
-            style={s.coinEditInput}
+            style={[s.coinEditInput, overdrawn && s.coinEditInputError]}
             value={text}
             onChangeText={setText}
             onSubmitEditing={handleSave}
             keyboardType="number-pad"
+            placeholder={mode === 'set' ? 'New balance' : 'Amount'}
+            placeholderTextColor={colors.outline}
             selectTextOnFocus
             autoFocus
             returnKeyType="done"
           />
+
+          {overdrawn ? (
+            <Text style={s.coinErrorLine}>
+              Not enough {label.toLowerCase()} — only {currentValue} available.
+            </Text>
+          ) : (
+            <Text style={[s.coinPreviewLine, !entered && { opacity: 0 }]}>
+              → {result ?? currentValue} {label.toLowerCase()}
+            </Text>
+          )}
+
           <View style={s.attuneConfirmActions}>
             <TouchableOpacity onPress={onClose} style={[s.attuneConfirmBtn, s.attuneConfirmCancel]} activeOpacity={0.7}>
               <Text style={s.attuneConfirmCancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleSave} style={[s.attuneConfirmBtn, s.coinEditSave]} activeOpacity={0.7}>
-              <Text style={s.coinEditSaveText}>Save</Text>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={!canApply}
+              style={[s.attuneConfirmBtn, s.coinEditSave, !canApply && s.coinEditSaveDisabled]}
+              activeOpacity={0.7}
+            >
+              <Text style={s.coinEditSaveText}>Apply</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -1316,13 +1395,45 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     paddingVertical: 10, paddingHorizontal: 14,
   },
+  coinEditInputError: { borderColor: colors.hpDanger },
   coinEditSave: {
     backgroundColor: colors.primaryContainer,
     borderColor: colors.primaryContainer,
   },
+  coinEditSaveDisabled: { opacity: 0.4 },
   coinEditSaveText: {
     fontSize: 12, fontFamily: fonts.label, fontWeight: '700',
     color: colors.onPrimary, letterSpacing: 0.3,
+  },
+
+  // Set / Add / Subtract segmented control
+  coinModeRow: {
+    flexDirection: 'row', gap: 4, padding: 3,
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.outlineVariant,
+  },
+  coinModeBtn: {
+    flex: 1, paddingVertical: 7, borderRadius: radius.DEFAULT,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  coinModeBtnActive: { backgroundColor: colors.primaryContainer },
+  coinModeText: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '700',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3,
+  },
+  coinModeTextActive: { color: colors.onPrimary },
+  coinCurrentLine: {
+    fontSize: 11, fontFamily: fonts.label, fontWeight: '600',
+    color: colors.onSurfaceVariant, letterSpacing: 0.3, textAlign: 'center',
+  },
+  coinPreviewLine: {
+    fontSize: 13, fontFamily: fonts.headline, fontWeight: '700',
+    color: colors.primary, textAlign: 'center',
+  },
+  coinErrorLine: {
+    fontSize: 11, fontFamily: fonts.body,
+    color: colors.hpDanger, textAlign: 'center',
   },
 
   // Carry capacity

@@ -855,9 +855,20 @@ export function ConditionsSection({
       )}
 
       {/* Condition picker modal */}
+      {/* The dismiss target is a *sibling* absolute-fill Pressable rather
+          than a Touchable wrapped around the sheet. Wrapping relied on the
+          sheet claiming the responder to stop the press bubbling, which the
+          search TextInput doesn't do on web — so focusing the search field
+          closed the whole picker. As siblings the sheet and the backdrop are
+          separate subtrees and no press inside the sheet can reach it. */}
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={closePicker}>
-        <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={closePicker}>
-          <View style={s.modalSheet} onStartShouldSetResponder={() => true}>
+        <View style={s.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={closePicker}
+            accessibilityLabel="Close condition picker"
+          />
+          <View style={s.modalSheet}>
 
             {/* Header */}
             <View style={s.modalHeader}>
@@ -946,7 +957,7 @@ export function ConditionsSection({
             </ScrollView>
 
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
