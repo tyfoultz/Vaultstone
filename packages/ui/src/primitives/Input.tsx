@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View, TextInput, type TextInputProps } from 'react-native';
 import { MetaLabel } from './MetaLabel';
+import { useAutoGrow } from './useAutoGrow';
 import { colors, fonts, radius, spacing } from '../tokens';
 
 type Props = TextInputProps & {
@@ -30,11 +31,14 @@ export function Input({
   ...rest
 }: Props) {
   const [focused, setFocused] = useState(false);
-  const [contentHeight, setContentHeight] = useState<number | null>(null);
 
   const flat = StyleSheet.flatten(style) ?? {};
   const grows = !!multiline && autoGrow !== false && flat.height == null;
   const minHeight = typeof flat.minHeight === 'number' ? flat.minHeight : 0;
+
+  // The TextInput itself carries no padding or border (both live on the
+  // wrapper View below), so the measurement needs no box compensation.
+  const autoHeight = useAutoGrow({ minHeight, enabled: grows });
 
   return (
     <View
@@ -53,32 +57,12 @@ export function Input({
         multiline={multiline}
         onFocus={(e) => { setFocused(true); onFocus?.(e); }}
         onBlur={(e) => { setFocused(false); onBlur?.(e); }}
-        // Native reports true content size here, and on web this is the
-        // first measurement (on mount, before any height is applied) —
-        // which is what sizes an edit form to its existing text.
         onContentSizeChange={(e) => {
-          if (grows) {
-            setContentHeight(Math.max(minHeight, e.nativeEvent.contentSize.height));
-          }
+          autoHeight.onContentSizeChange(e);
           onContentSizeChange?.(e);
         }}
         onChange={(e) => {
-          // Web-only correction. react-native-web measures a multiline
-          // field with `scrollHeight`, which never reports less than the
-          // height already on the element — so the box would grow and
-          // never shrink back when text is deleted. Collapse to `auto`,
-          // read the real content height, then restore what was there and
-          // let React own the height again.
-          if (grows) {
-            const node = (e as unknown as { target?: HTMLTextAreaElement }).target;
-            if (node && typeof node.scrollHeight === 'number') {
-              const prev = node.style.height;
-              node.style.height = 'auto';
-              const measured = node.scrollHeight;
-              node.style.height = prev;
-              setContentHeight(Math.max(minHeight, measured));
-            }
-          }
+          autoHeight.onChange(e);
           onChange?.(e);
         }}
         style={[
@@ -90,7 +74,7 @@ export function Input({
             ...({ outlineStyle: 'none' } as object),
           },
           style,
-          grows && contentHeight != null ? { height: contentHeight } : null,
+          autoHeight.height != null ? { height: autoHeight.height } : null,
         ]}
         {...rest}
       />

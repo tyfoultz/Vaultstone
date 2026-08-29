@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, type NativeSyntheticEvent, type TextInputContentSizeChangeEventData } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, spacing, radius } from '@vaultstone/ui';
+import { colors, fonts, spacing, radius, useAutoGrow } from '@vaultstone/ui';
 import type {
   Dnd5eStats, Dnd5eResources, Dnd5ePersonality, Dnd5eAppearance, Dnd5eJournalEntry,
 } from '@vaultstone/types';
@@ -9,21 +9,26 @@ import { BodyEditor } from '../world/BodyEditor';
 
 type SubTab = 'about' | 'journal';
 
+/**
+ * Auto-growing lore field. Sizing lives in the shared `useAutoGrow` hook
+ * because the naive version (feed `contentSize.height` straight back into
+ * `height`) ratchets upward by a line per keystroke on web — react-native-web
+ * measures with `scrollHeight`, which never reports less than the height
+ * already applied, so even backspace grew the box.
+ *
+ * `paddingY` / `borderY` mirror `s.fieldInput`'s own box so the computed
+ * height clears the text instead of clipping its last line.
+ */
 function ExpandableInput(props: React.ComponentProps<typeof TextInput> & { minH?: number }) {
-  const { minH = 44, style, ...rest } = props;
-  const [height, setHeight] = useState(minH);
-  const onSize = useCallback(
-    (e: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
-      setHeight(Math.max(minH, e.nativeEvent.contentSize.height + 20));
-    },
-    [minH],
-  );
+  const { minH = 44, style, onChange, onContentSizeChange, ...rest } = props;
+  const autoHeight = useAutoGrow({ minHeight: minH, paddingY: 10, borderY: 1 });
   return (
     <TextInput
       {...rest}
       multiline
-      style={[style, { height: Math.max(minH, height) }]}
-      onContentSizeChange={onSize}
+      style={[style, { height: autoHeight.height ?? minH }]}
+      onContentSizeChange={(e) => { autoHeight.onContentSizeChange(e); onContentSizeChange?.(e); }}
+      onChange={(e) => { autoHeight.onChange(e); onChange?.(e); }}
       textAlignVertical="top"
     />
   );

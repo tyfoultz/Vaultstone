@@ -8,7 +8,7 @@ import { runAssistantTurn, type ChatMessage } from '@vaultstone/ai';
 import { getCampaignById, updateAiSettings } from '@vaultstone/api';
 import { useAiChatStore, selectCampaignMessages } from '@vaultstone/store';
 import {
-  colors, spacing, radius, Text, Input, GhostButton, MarkdownText,
+  colors, spacing, radius, Text, Input, GhostButton, MarkdownText, useAutoGrow,
 } from '@vaultstone/ui';
 import type { AiChatSeed } from './AiChatContext';
 
@@ -74,7 +74,10 @@ export function AiChatOverlay({
   const acceptDisclosure = useAiChatStore((s) => s.acceptDisclosure);
 
   const [input, setInput] = useState('');
-  const [composerH, setComposerH] = useState(20);
+  // The composer drives its own height (it clamps to a max), so `Input`'s
+  // built-in auto-grow is off and this hook supplies the measurement —
+  // including the web correction that lets the box shrink back down.
+  const composer = useAutoGrow({ minHeight: 20 });
   const [sending, setSending] = useState(false);
   const [playerAccess, setPlayerAccess] = useState(
     () => playerAccessCache.get(seed.campaignId) ?? false,
@@ -204,6 +207,7 @@ export function AiChatOverlay({
     const next = [...messages, userMsg];
     addMessage(seed.campaignId, userMsg);
     setInput('');
+    composer.reset();
     setSending(true);
     try {
       const result = await runAssistantTurn(next, seed);
@@ -211,7 +215,7 @@ export function AiChatOverlay({
     } finally {
       setSending(false);
     }
-  }, [input, sending, messages, addMessage, seed]);
+  }, [input, sending, messages, addMessage, seed, composer.reset]);
 
   const examples = seed.role === 'dm' ? DM_PROMPTS : PLAYER_PROMPTS;
 
@@ -332,9 +336,9 @@ export function AiChatOverlay({
             returnKeyType="send"
             editable={!sending}
             multiline
-            onContentSizeChange={(e) =>
-              setComposerH(e.nativeEvent.contentSize.height)}
-            style={{ height: clamp(composerH, 20, 120) }}
+            onContentSizeChange={composer.onContentSizeChange}
+            onChange={composer.onChange}
+            style={{ height: clamp(composer.height ?? 20, 20, 120) }}
           />
         </View>
         <Pressable
